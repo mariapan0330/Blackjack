@@ -13,11 +13,12 @@ import os
 # https://www.deckofcardsapi.com/
 
 class Deck:
-    
+    # NOTE: I wanted to practice using APIs, so the game uses this deck of cards API
     def __init__(self, deck_id):
         self.deck_id = deck_id
         self.base_url = f"https://www.deckofcardsapi.com/api/deck/{self.deck_id}/"
         
+
     def _get(self, action):
         """ Returns the requested stuff from the API. 'action' can be:
                 draw = draw a card from the deck (without replacement)
@@ -28,6 +29,7 @@ class Deck:
         else:
             print(f"There was an error {action}ing the card(s).")
     
+
     def evaluate_card(self, card):
         """ Takes in an API card and returns the int value of that card.
                 2-9 will return that value.
@@ -208,7 +210,6 @@ class Player:
             if again not in {"y",'n'}:
                 print("That didn't work.")
             elif again == 'y':
-                print("YOU'VE CHOSEN PLAY AGAIN")
                 # reset all class attributes
                 self.bet = 0
                 self.hand = []
@@ -390,7 +391,7 @@ class Dealer():
                 print("Dealer has a Blackjack!")
                 if ins:
                     self.player.money += (self.player.insurance*2)
-                    self.player.money -= self.player.bet
+                self.player.money -= self.player.bet
                 
                 if self.player.has_blackjack:
                         print("===============")
@@ -401,6 +402,7 @@ class Dealer():
                     self.player.take_turn(self)
 
             else:
+                os.system('cls')
                 self.print_hand(False)
                 if ins:
                     self.player.money -= self.player.insurance
