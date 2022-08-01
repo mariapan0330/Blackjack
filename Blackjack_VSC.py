@@ -1,9 +1,16 @@
-import random
 import requests
 import time
-# from IPython.display import clear_output
 import os
 
+# ASCII corner and line symbols:
+# https://textkool.com/en/symbols/corner-symbols
+# https://textkool.com/en/symbols/line-symbols
+
+# ASCII card symbols:
+# https://textkool.com/en/symbols/card-symbols
+
+# I wanted to practice using APIs, so the game uses this deck of cards API:
+# https://www.deckofcardsapi.com/
 
 class Deck:
     
@@ -58,6 +65,7 @@ class Player:
     formatted_hand = []
     hand_val = 0
     has_blackjack = False
+    insurance = 0
     
     def __init__(self, deck, money, bet):
         self.deck = deck
@@ -90,7 +98,7 @@ class Player:
             num = card['cards'][0]['value']
             self.formatted_hand.append(['╭─────╮',f'│  {num}  │', '│     │', f'│  {suit}  │','╰─────╯'])
     
-    def print_hand(self):
+    def print_hand(self, insurance):
         """ Prints the player's hand, 
             including if they have a blackjack, 
             their current bet,
@@ -115,6 +123,8 @@ class Player:
         if self.has_blackjack:
             print("\n\tBLACKJACK!")
         print(f"\nMY BET: ${self.bet:.2f}")
+        if insurance:
+            print(f"\nINSURANCE: ${self.insurance:.2f}")
         print(f"MY WALLET: ${self.money:.2f}")
 
     
@@ -125,20 +135,23 @@ class Player:
         # os.system('cls')
         # dealer.print_hand(False)
         # self.print_hand()
-        choice = input("\nWhat would you like to do? (HIT / STAND): ").lower().strip()
-        while choice not in {'hit', 'stand'}:
+        choice = input("\nWhat would you like to do? (HIT / STAND / DOUBLE DOWN): ").lower().strip()
+        while choice not in {'hit', 'stand','double down'}:
             choice = input("That didn't work." +
-                "\nWhat would you like to do? (HIT / STAND): ").lower().strip()
+                "\nWhat would you like to do? (HIT / STAND / DOUBLE DOWN): ").lower().strip()
         if choice == 'hit':
             self.hit(dealer)
         elif choice == 'stand':
-            dealer.take_turn()
+            dealer.take_turn(insurance=False)
+        elif choice == 'double down':
+            self.bet *= 2
+            self.hit(dealer, doubledown=True)
         
 #         MAYBE LATER: If the two cards on the first move are the same, option to SPLIT.
 #         MAYBE LATER: Option to DOUBLE DOWN (2x bet and only draw 1 card).
     
     
-    def hit(self, dealer):
+    def hit(self, dealer, **doubledown):
         """ Draws a new API card and puts it in the player's hand.
             Evaluates the player's hand's value after the draw to see if they lost """
 #         print("You have decided to HIT.")
@@ -147,7 +160,7 @@ class Player:
         self.append_formatted_hand(card)
         os.system('cls')
         dealer.print_hand(False)
-        self.print_hand()
+        self.print_hand(insurance=False)
         self.hand_val += self.deck.evaluate_card(card)
 
         ace_count = 0
@@ -164,9 +177,15 @@ class Player:
             print("Your total is over 21. You lost.")
             self.money -= self.bet
             print(f"WALLET: ${self.money:.2f}")
-            self.play_again(dealer)
+            if doubledown:
+                pass
+            else:
+                self.play_again(dealer)
         else:
-            self.take_turn(dealer)
+            if doubledown:
+                self.dealer.take_turn(insurance=False)
+            else:
+                self.take_turn(dealer)
 
     
     def quit(self):
@@ -191,15 +210,18 @@ class Player:
                 print("That didn't work.")
             elif again == 'y':
                 print("YOU'VE CHOSEN PLAY AGAIN")
+                # reset all class attributes
                 self.bet = 0
                 self.hand = []
                 self.formatted_hand = []
                 self.hand_val = 0
                 self.has_blackjack = False
+                self.insurance = 0
                 dealer.hand = []
                 dealer.formatted_hand = []
                 dealer.hand_val = 0
                 dealer.has_blackjack = False
+                dealer.opt_insurance = False
                 
                 start(dealer, self)
                 break
@@ -215,6 +237,7 @@ class Dealer():
     formatted_hand = []
     hand_val = 0
     has_blackjack = False
+    opt_insurance = False
     
     def __init__(self, deck, player):
         self.deck = deck
@@ -303,7 +326,7 @@ class Dealer():
         card = self.deck._get('draw')
         self.player.hand.append(card)
         self.player.append_formatted_hand(card)
-        self.player.print_hand()
+        self.player.print_hand(insurance=False)
 #         add the value of the current card to player's hand
         self.player.hand_val += self.deck.evaluate_card(card)
         
@@ -315,9 +338,10 @@ class Dealer():
         self.append_formatted_hand(card)
 #         add the value of the current card to dealer's hand
         self.hand_val += self.deck.evaluate_card(card)
+        if self.hand_val == 11:
+            self.opt_insurance = True
         self.print_hand(False)
-        self.player.print_hand() # for the ambiance, printing my hand below the dealer's
-        # MAYBE LATER: INSURANCE if dealer has an ace showing.
+        self.player.print_hand(insurance=False) # for the ambiance, printing my hand below the dealer's
         
 #         3. To me
         time.sleep(1)
@@ -331,7 +355,7 @@ class Dealer():
 #         If it's a blackjack, let me know. 
         if self.player.hand_val == 21:
             self.player.has_blackjack = True
-        self.player.print_hand()
+        self.player.print_hand(insurance=False)
 #         print(f"HAND VALUE: {self.player.hand_val}")
 
 #         4. To Dealer (face down)
@@ -344,7 +368,7 @@ class Dealer():
         if self.hand_val == 21:
             self.has_blackjack = True
         self.print_hand(False)
-        self.player.print_hand()
+        self.player.print_hand(insurance=False)
 #         AFTER DEALER'S TURN: add the value of the current hand to dealer's hand
 #         If you have a blackjack, check if dealer also has a potential Blackjack
 #             if dealer does not have Ace or 10, you automatically win.
@@ -354,7 +378,20 @@ class Dealer():
         if self.player.has_blackjack:
             if (self.hand[0]['cards'][0]['value'].lower() == 'ace' 
                 or self.hand[0]['cards'][0]['value'].lower() =='10'):
-                self.take_turn()
+                if self.opt_insurance:
+                    opt_in = input("Would you like to buy insurance? (Y/N): ").lower()
+                    while opt_in not in {'y','n'}:
+                        opt_in = input("That didn't work.\nWould you like to buy insurance? (Y/N): ").lower()
+                    else:
+                        amt = input("How much would you like to insure? You can insure up to 50%" + " of your bet")
+                        while amt.isdigit() == False:
+                            amt = input("That didn't work.\nPlease enter a whole number: ")
+                        if amt > self.player // 2:
+                            amt = input("That didn't work. You can only insure up to 50%" + " of your bet")
+                        else:
+                            print(f"INSURANCE: {amt}")
+                            self.player.insurance = int(amt)
+                self.take_turn(insurance=True)
             else:
                 print("===============")
                 print("You win!")
@@ -367,11 +404,11 @@ class Dealer():
         
 
         
-    def take_turn(self):
+    def take_turn(self, insurance):
         """ Dealer decides how to take turn """
         os.system('cls')
         self.print_hand(True)
-        self.player.print_hand()
+        self.player.print_hand(insurance)
         if self.player.has_blackjack:
             if self.has_blackjack:
                 print("===============")
@@ -403,7 +440,7 @@ class Dealer():
             elif self.hand_val < 17:
                 self.hit()
             elif self.hand_val >= 17 and self.hand_val <= 21:
-                self.compare_hands()
+                self.compare_hands(insurance=True)
         
     
     def hit(self):
@@ -414,11 +451,11 @@ class Dealer():
         self.hand.append(card)
         self.append_formatted_hand(card)
         self.print_hand(True)
-        self.player.print_hand()
+        self.player.print_hand(insurance=False)
         self.hand_val += self.deck.evaluate_card(card)
-        self.take_turn()
+        self.take_turn(insurance=False)
     
-    def compare_hands(self):
+    def compare_hands(self, insurance):
         time.sleep(1)
         print("===============")
         if self.hand_val > self.player.hand_val:
@@ -438,7 +475,11 @@ class Dealer():
                 self.player.play_again(self)
             elif self.has_blackjack:
                 print("Dealer has Blackjack. You lose.")
-                self.player.money -= self.player.bet
+                if insurance:
+                    print("Subtracting Insurance.")
+                    self.player.money -= self.player.insurance
+                else:
+                    self.player.money -= self.player.bet
                 print(f"WALLET: ${self.player.money:.2f}")
                 self.player.play_again(self)
             else:
@@ -458,6 +499,9 @@ def get_new_deck_id():
     
 def start(dealer, player):
     os.system('cls')
+    deck = Deck(get_new_deck_id())
+    player.deck = deck
+    dealer.deck = deck
     print("=============== WELCOME TO BLACKJACK ===============")
     print("PLACE YOUR BETS. Minimum: $5.")
     print("-----")
@@ -479,8 +523,6 @@ def start(dealer, player):
             print("Please enter a whole number.")
 
 
-
-deck = Deck(get_new_deck_id())
-me = Player(deck, 100, 0)
-dealer = Dealer(deck, me)
+me = Player(None, 100, 0)
+dealer = Dealer(None, me)
 start(dealer, me)
