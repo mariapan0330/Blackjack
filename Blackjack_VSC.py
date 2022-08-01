@@ -14,6 +14,7 @@ import os
 
 class Deck:
     # NOTE: I wanted to practice using APIs, so the game uses this deck of cards API
+    # !!! MARIA !!! You wrote notes down!!!
     def __init__(self, deck_id):
         self.deck_id = deck_id
         self.base_url = f"https://www.deckofcardsapi.com/api/deck/{self.deck_id}/"
@@ -68,6 +69,7 @@ class Player:
     hand_val = 0
     has_blackjack = False
     insurance = 0
+    have_subtracted_aces = False
     
     def __init__(self, deck, money, bet):
         self.deck = deck
@@ -99,6 +101,7 @@ class Player:
             num = card['cards'][0]['value']
             self.formatted_hand.append(['╭─────╮',f'│  {num}  │', '│     │', f'│  {suit}  │','╰─────╯'])
     
+
     def print_hand(self, insurance):
         """ Prints the player's hand, 
             including if they have a blackjack, 
@@ -150,10 +153,7 @@ class Player:
         elif choice == 'double down' or choice == 'd':
             self.bet *= 2
             self.hit(dealer, doubledown=True)
-        
 #         MAYBE LATER: If the two cards on the first move are the same, option to SPLIT.
-#         MAYBE LATER: Option to DOUBLE DOWN (2x bet and only draw 1 card).
-    
     
     def hit(self, dealer, **doubledown):
         """ Draws a new API card and puts it in the player's hand.
@@ -168,6 +168,10 @@ class Player:
         self.hand_val += self.deck.evaluate_card(card)
 
         ace_count = 0
+        # TODO: This ace counter doesn't totally work.
+        # It should only subtract once for each ace, at maximum.
+        # Instead it checks for the aces every time you hit,
+        # so it keeps subtracting the aces every round.
         for card in self.hand:
             if card['cards'][0]['value'].lower() == 'ace':
                 ace_count += 1
@@ -299,6 +303,7 @@ class Dealer():
             else:
                 print('')
         
+
     def append_formatted_hand(self, card):
         """ Accepts an API card object and appends the formatted_hand attribute
             with the card as a formatted object."""
@@ -440,7 +445,6 @@ class Dealer():
                     amt = input("That didn't work. Please enter a number. \nHow much would you like to insure? $")
         return True if opt_in == 'y' else False
 
-
         
     def take_turn(self, insurance):
         """ Dealer decides how to take turn """
@@ -461,6 +465,10 @@ class Dealer():
                 self.player.play_again(self)
         else:
             ace_count = 0
+            # TODO: This ace counter also probably doesn't work.
+            # (It should only subtract once for each ace, at maximum.
+            # Instead it checks for the aces every time the dealer hits,
+            # so it keeps subtracting the aces every round.)
             for card in self.hand:
                 if card['cards'][0]['value'].lower() == 'ace':
                     ace_count += 1
@@ -493,6 +501,7 @@ class Dealer():
         self.hand_val += self.deck.evaluate_card(card)
         self.take_turn(insurance=False)
     
+
     def compare_hands(self, insurance):
         time.sleep(1)
         print("===============")
