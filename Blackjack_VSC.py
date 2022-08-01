@@ -81,7 +81,6 @@ class Player:
     def append_formatted_hand(self, card):
         """ Accepts an API card object and appends the formatted_hand attribute
             with the card as a formatted object."""
-#         BOOKMARK
         suit = self.deck.card_suit(card)
     
         if card['cards'][0]['value'].lower() == 'jack':
@@ -135,15 +134,18 @@ class Player:
         # os.system('cls')
         # dealer.print_hand(False)
         # self.print_hand()
-        choice = input("\nWhat would you like to do? (HIT / STAND / DOUBLE DOWN): ").lower().strip()
-        while choice not in {'hit', 'stand','double down'}:
+        choice = input("\nWhat would you like to do? (H)IT / (S)TAND / (D)OUBLE DOWN: ").lower().strip()
+        while choice not in {'hit', 'stand','double down','h','s','d'}:
             choice = input("That didn't work." +
-                "\nWhat would you like to do? (HIT / STAND / DOUBLE DOWN): ").lower().strip()
-        if choice == 'hit':
+                "\nWhat would you like to do? (H)IT / (S)TAND / (D)OUBLE DOWN: ").lower().strip()
+        while (choice == 'd' or choice == 'double down') and self.bet * 2 > self.money:
+            choice = input(f"You don't have enough money to double down. You only have ${self.money:.2f}" +
+                "\nWhat would you like to do? (H)IT / (S)TAND / (D)OUBLE DOWN: ").lower().strip()
+        if choice == 'hit' or choice == 'h':
             self.hit(dealer)
-        elif choice == 'stand':
+        elif choice == 'stand' or choice == 's':
             dealer.take_turn(insurance=False)
-        elif choice == 'double down':
+        elif choice == 'double down' or choice == 'd':
             self.bet *= 2
             self.hit(dealer, doubledown=True)
         
@@ -177,13 +179,10 @@ class Player:
             print("Your total is over 21. You lost.")
             self.money -= self.bet
             print(f"WALLET: ${self.money:.2f}")
-            if doubledown:
-                pass
-            else:
-                self.play_again(dealer)
+            self.play_again(dealer)
         else:
             if doubledown:
-                self.dealer.take_turn(insurance=False)
+                dealer.take_turn(insurance=False)
             else:
                 self.take_turn(dealer)
 
@@ -302,7 +301,6 @@ class Dealer():
     def append_formatted_hand(self, card):
         """ Accepts an API card object and appends the formatted_hand attribute
             with the card as a formatted object."""
-#         BOOKMARK
         suit = self.deck.card_suit(card)
     
         if card['cards'][0]['value'].lower() == 'jack':
@@ -326,6 +324,12 @@ class Dealer():
         card = self.deck._get('draw')
         self.player.hand.append(card)
         self.player.append_formatted_hand(card)
+        print("--- DEALER HAND ---")
+        print("")
+        print("")
+        print("")
+        print("")
+        print("")
         self.player.print_hand(insurance=False)
 #         add the value of the current card to player's hand
         self.player.hand_val += self.deck.evaluate_card(card)
@@ -338,6 +342,8 @@ class Dealer():
         self.append_formatted_hand(card)
 #         add the value of the current card to dealer's hand
         self.hand_val += self.deck.evaluate_card(card)
+        # BOOKMARK - uncomment the line below to force an insurance query
+        # self.hand_val = 11
         if self.hand_val == 11:
             self.opt_insurance = True
         self.print_hand(False)
@@ -375,24 +381,34 @@ class Dealer():
 #             if dealer has Ace or 10, do dealer's turn first.
 #         If you don't have blackjack, take your turn.
         time.sleep(1)
-        if self.player.has_blackjack:
-            if (self.hand[0]['cards'][0]['value'].lower() == 'ace' 
-                or self.hand[0]['cards'][0]['value'].lower() =='10'):
-                if self.opt_insurance:
-                    opt_in = input("Would you like to buy insurance? (Y/N): ").lower()
-                    while opt_in not in {'y','n'}:
-                        opt_in = input("That didn't work.\nWould you like to buy insurance? (Y/N): ").lower()
-                    else:
-                        amt = input("How much would you like to insure? You can insure up to 50%" + " of your bet")
-                        while amt.isdigit() == False:
-                            amt = input("That didn't work.\nPlease enter a whole number: ")
-                        if amt > self.player // 2:
-                            amt = input("That didn't work. You can only insure up to 50%" + " of your bet")
-                        else:
-                            print(f"INSURANCE: {amt}")
-                            self.player.insurance = int(amt)
-                self.take_turn(insurance=True)
+        if self.opt_insurance:
+            ins = self.take_insurance()
+            if self.has_blackjack:
+                os.system('cls')
+                self.print_hand(True)
+                self.player.print_hand(ins)
+                print("Dealer has a Blackjack!")
+                if ins:
+                    self.player.money += (self.player.insurance*2)
+                    self.player.money -= self.player.bet
+                
+                if self.player.has_blackjack:
+                        print("===============")
+                        print("TIE!")
+                        print(f"WALLET: ${self.player.money:.2f}")
+                        self.player.play_again(self)
+                else:
+                    self.player.take_turn(self)
+
             else:
+                self.print_hand(False)
+                if ins:
+                    self.player.money -= self.player.insurance
+                self.player.print_hand(False)
+                print("Dealer does not have a Blackjack.")
+                # play continues as usual.
+
+        if self.player.has_blackjack:
                 print("===============")
                 print("You win!")
                 self.player.money += (self.player.bet*1.5)
@@ -400,8 +416,28 @@ class Dealer():
                 self.player.play_again(self)
         else:
             self.player.take_turn(self)
-        
-        
+
+
+    def take_insurance(self):
+        opt_in = input("Would you like to buy insurance? (Y/N): ").lower()
+        while opt_in not in {'y','n'}:
+            opt_in = input("That didn't work.\nWould you like to buy insurance? (Y/N): ").lower()
+        else:
+            amt = input(f"You can insure up to ${self.player.bet/2:.2f}. \nHow much would you like to insure? $")
+            while True:
+                try:
+                    if isinstance(float(amt),float): # if it works, continue; if it throws an error, ask again.
+                        while float(amt) > self.player.bet / 2:
+                            amt = input(f"That didn't work. You can only insure up to ${self.player.bet/2:.2f}."+ 
+                                "\nHow much would you like to insure? $")
+                        else:
+                            print(f"INSURANCE: ${float(amt):.2f}")
+                            self.player.insurance = float(amt)
+                            break
+                except:
+                    amt = input("That didn't work. Please enter a number. \nHow much would you like to insure? $")
+        return True if opt_in == 'y' else False
+
 
         
     def take_turn(self, insurance):
@@ -440,7 +476,7 @@ class Dealer():
             elif self.hand_val < 17:
                 self.hit()
             elif self.hand_val >= 17 and self.hand_val <= 21:
-                self.compare_hands(insurance=True)
+                self.compare_hands(insurance)
         
     
     def hit(self):
